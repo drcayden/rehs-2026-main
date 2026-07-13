@@ -1,0 +1,3 @@
+{"q": "How do I request a GPU pod?", "expected_source": "running/gpu-pods/", "ideal": "Add nvidia.com/gpu: 1 to your pod's resources section.", "category": "gpu"}
+{"q": "How do I get an API token for the NRP LLM?", "expected_source": "llmtoken", "ideal": "Generate a token at nrp.ai/llmtoken and pass it as a Bearer token.", "category": "llm"}
+{"q": "How do I mount a PersistentVolumeClaim?", "expected_source": "storage/", "ideal": "Create a PVC, then reference it in volumes and mount it via volumeMounts.", "category": "storage"}

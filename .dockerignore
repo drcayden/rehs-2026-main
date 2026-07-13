@@ -1,0 +1,22 @@
+# Keep the image small and the build fast.
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local-only data — the image seeds its own (see deploy/README.md)
+chroma_db/
+data/raw/
+
+# Never bake secrets into a layer
+.env
+.env.*
+
+# Dev cruft
+.git/
+.gitignore
+.pytest_cache/
+.DS_Store
+*.log
