@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: chatbot-config
-  namespace: <<NAMESPACE>>
+  namespace: rehs-2026-chatbot
 data:
   NRP_LLM_BASE_URL: "https://ellm.nrp-nautilus.io/v1"
   LLM_MODEL: "gpt-oss"
