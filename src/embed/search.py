@@ -16,6 +16,12 @@ this file only needs the query-time ``search`` and a shared ``embed`` helper.
 """
 
 from __future__ import annotations
+import json
+import os
+
+import chromadb
+from dotenv import load_dotenv
+from openai import OpenAI
 
 
 def embed(text: str) -> list[float]:
@@ -28,8 +34,11 @@ def embed(text: str) -> list[float]:
         resp = client.embeddings.create(model="qwen3-embedding", input=[text])
         return resp.data[0].embedding
     """
-    # TODO(week-05): call the NRP qwen3-embedding model and return the vector.
-    raise NotImplementedError("Week 5: implement embed().")
+    return (
+        client.embeddings.create(model="qwen3-embedding", input=[text])
+        .data[0]
+        .embedding
+    )
 
 
 def search(query: str, k: int = 5) -> list[dict]:
@@ -60,7 +69,41 @@ def search(query: str, k: int = 5) -> list[dict]:
     or does not exist yet, return ``[]`` — DO NOT crash. The UI shows a friendly
     "no docs indexed yet" message when this returns an empty list.
     """
-    # TODO(week-05): implement real retrieval against Chroma.
-    # Returning [] keeps the app (and the eval harness) importable and runnable
-    # before retrieval is wired up, and is also the correct empty-collection answer.
-    return []
+    res = coll.query(query_embeddings=[embed(query)], n_results=k)
+
+    # Use .get() with a fallback to empty lists to satisfy the type-checker
+    documents = res.get("documents") or []
+    metadatas = res.get("metadatas") or []
+    distances = res.get("distances") or []
+
+    # Ensure we actually got results before indexing [0]
+    docs_list = documents[0] if documents else []
+    meta_list = metadatas[0] if metadatas else []
+    dist_list = distances[0] if distances else []
+
+    return [
+        {"text": d, "source_url": m["source_url"], "title": m["title"], "score": s}
+        for d, m, s in zip(docs_list, meta_list, dist_list)
+    ]
+
+
+# load json
+with open("data/chunks/chunks.json", "r") as f:
+    chunks = json.load(f)
+
+# env openai
+load_dotenv()
+client = OpenAI(
+    api_key=os.environ["NRP_LLM_TOKEN"], base_url=os.environ["NRP_LLM_BASE_URL"]
+)
+
+# start chromadb
+coll = chromadb.PersistentClient(path="./chroma_db").get_or_create_collection(
+    "nrp_docs"
+)
+coll.add(
+    ids=[c["id"] for c in chunks],
+    documents=[c["text"] for c in chunks],
+    embeddings=[embed(c["text"]) for c in chunks],
+    metadatas=[{"source_url": c["source_url"], "title": c["title"]} for c in chunks],
+)

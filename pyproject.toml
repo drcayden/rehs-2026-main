@@ -1,0 +1,13 @@
+# ruff.toml (Recommended Production Setup)
+line-length = 88
+target-version = "py39" # Set to your actual Python version
+
+[lint]
+# Adds import sorting (I) and PEP 8 style warnings (W) to the defaults
+select = ["E", "F", "W", "I"]
+# E501 is "line too long" — we ignore it for linting because the formatter fixes it for us anyway
+ignore = ["E501"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

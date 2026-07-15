@@ -15,8 +15,45 @@ Implementation plan (Week 5):
 """
 
 from __future__ import annotations
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+import streamlit as st
 
 from src.embed.search import search
+
+
+def build_grounded_messages(question: str, chunks: list[dict]) -> None:
+    """Builds a list of messages that ground the question in the retrieved chunks.
+
+    CONTRACT (see docs/INTERFACES.md) — each message dict MUST have exactly:
+        {
+            "role":    str,  # "system" or "user"
+            "content": str,  # the message text
+        }
+
+    Reference implementation shape (Week 5):
+        system_msg = {"role": "system", "content": SYSTEM_PROMPT}
+        numbered_docs = "\n\n".join(
+            f"[{i+1}] {c['title']} ({c['source_url']}):\n{c['text']}"
+            for i, c in enumerate(chunks)
+        )
+        user_msg = {
+            "role": "user",
+            "content": f"{numbered_docs}\n\nQuestion: {question}\nAnswer:"
+        }
+        return [system_msg, user_msg]
+    """
+    # build message
+    context = "\n\n---\n\n".join(f"[Source: {c['title']}]\n{c['text']}" for c in chunks)
+    grounded = f"""
+Use the NRP documentation below to answer. If the docs don't contain the answer, say so honestly.
+DOCS:
+{context}
+QUESTION: {question}
+    """
+    # append message
+    st.session_state.messages.append({"role": "system", "content": grounded})
 
 
 def answer_question(question: str, k: int = 5) -> dict:
@@ -40,8 +77,36 @@ def answer_question(question: str, k: int = 5) -> dict:
     works (or returns [] on an empty collection), so eval.py can already run the
     retrieval half. Return the chunks with an empty answer rather than crashing.
     """
-    # TODO(week-05): call the NRP gpt-oss model with grounded messages and
-    # return its answer. For now, return retrieval-only so scripts/eval.py and
-    # the Week-6 import work before generation is wired up.
-    chunks = search(question, k=k)
-    return {"answer": "", "chunks": chunks}
+    # init vars
+    answer = ""
+
+    # get docs
+    with st.spinner("Searching NRP docs..."):
+        chunks = search(question, k=5)
+
+    # ground messages
+    build_grounded_messages(question, chunks)
+
+    # run stream
+    stream = client.chat.completions.create(
+        model=os.environ["LLM_MODEL"],
+        messages=st.session_state.messages,
+        stream=True,
+    )
+
+    # process chunks
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        if delta.content:
+            answer += delta.content
+
+    return {"answer": answer, "chunks": chunks}
+
+
+# env openai
+load_dotenv()
+client = OpenAI(
+    api_key=os.environ["NRP_LLM_TOKEN"], base_url=os.environ["NRP_LLM_BASE_URL"]
+)

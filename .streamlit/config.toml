@@ -1,0 +1,17 @@
+[server]
+enableStaticServing = true
+
+[[theme.fontFaces]]
+family = "CustomClientFont"
+url = "app/static/Comfortaa-VariableFont_wght.ttf"
+style = "normal"
+weight = 400
+
+[theme]
+font = "CustomClientFont"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "viewer"
