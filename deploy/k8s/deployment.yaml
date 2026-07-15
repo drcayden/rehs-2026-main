@@ -1,0 +1,43 @@
+# The chatbot pod: one Streamlit container, config from a ConfigMap, token from a
+# Secret, and the Chroma DB on a PVC mounted at /app/chroma_db.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot
+  namespace: <<NAMESPACE>>
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: chatbot}
+  template:
+    metadata:
+      labels: {app: chatbot}
+    spec:
+      containers:
+      - name: streamlit
+        image: <<IMAGE>>
+        ports:
+        - containerPort: 8501
+        envFrom:
+        - configMapRef: {name: chatbot-config}
+        - secretRef: {name: chatbot-llm-token}
+        volumeMounts:
+        - name: chroma
+          mountPath: /app/chroma_db
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        livenessProbe:
+          httpGet: {path: /_stcore/health, port: 8501}
+          initialDelaySeconds: 30
+        readinessProbe:
+          httpGet: {path: /_stcore/health, port: 8501}
+          initialDelaySeconds: 5
+      volumes:
+      - name: chroma
+        persistentVolumeClaim:
+          claimName: chroma-data

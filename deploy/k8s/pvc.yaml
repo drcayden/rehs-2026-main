@@ -1,0 +1,12 @@
+# Persistent storage for the Chroma vector DB. Survives pod restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chroma-data
+  namespace: <<NAMESPACE>>
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: <<STORAGE_CLASS>>
