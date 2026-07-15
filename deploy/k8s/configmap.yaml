@@ -1,0 +1,10 @@
+# Non-secret config for the chatbot. The token does NOT go here — see secret.example.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatbot-config
+  namespace: <<NAMESPACE>>
+data:
+  NRP_LLM_BASE_URL: "https://ellm.nrp-nautilus.io/v1"
+  LLM_MODEL: "gpt-oss"
+  EMBEDDING_MODEL: "qwen3-embedding"
