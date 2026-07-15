@@ -3,24 +3,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chatbot
+  name: cayden-chatbot
   namespace: rehs-2026-chatbot
 spec:
   replicas: 1
   selector:
-    matchLabels: {app: chatbot}
+    matchLabels: {app: cayden-chatbot}
   template:
     metadata:
-      labels: {app: chatbot}
+      labels: {app: cayden-chatbot}
     spec:
       containers:
       - name: streamlit
-        image: <<IMAGE>>
+        image: python:3.12-slim
         ports:
         - containerPort: 8501
         envFrom:
-        - configMapRef: {name: chatbot-config}
-        - secretRef: {name: chatbot-llm-token}
+        - secretRef: {name: cayden-chatbot-llm-token}
         volumeMounts:
         - name: chroma
           mountPath: /app/chroma_db
