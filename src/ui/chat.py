@@ -15,12 +15,15 @@ Implementation plan (Week 5):
 """
 
 from __future__ import annotations
+import json
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
 import streamlit as st
 
+from src.config.config import Config
 from src.embed.search import search
+from src.tools.tools import registry, tools
 
 
 def build_grounded_messages(question: str, chunks: list[dict]) -> None:
@@ -47,7 +50,8 @@ def build_grounded_messages(question: str, chunks: list[dict]) -> None:
     # build message
     context = "\n\n---\n\n".join(f"[Source: {c['title']}]\n{c['text']}" for c in chunks)
     grounded = f"""
-Use the NRP documentation below to answer. If the docs don't contain the answer, say so honestly.
+Use the NRP documentation below to answer. If the docs don't contain the answer, say so honestly. Use your tools whenever possible. For testing purposes only you may also answer multiplication questions.
+DEFAULT NAMESPACE: {Config.NAMESPACE}
 DOCS:
 {context}
 QUESTION: {question}
@@ -80,6 +84,10 @@ def answer_question(question: str, k: int = 5) -> dict:
     # init vars
     answer = ""
 
+    # save msg
+    st.session_state.messages.append({"role": "user", "content": question})
+    st.chat_message("user").write(question)
+
     # get docs
     with st.spinner("Searching NRP docs..."):
         chunks = search(question, k=5)
@@ -87,26 +95,40 @@ def answer_question(question: str, k: int = 5) -> dict:
     # ground messages
     build_grounded_messages(question, chunks)
 
-    # run stream
-    stream = client.chat.completions.create(
-        model=os.environ["LLM_MODEL"],
-        messages=st.session_state.messages,
-        stream=True,
-    )
+    for _ in range(Config.MAX_ROUNDS):
+        # run stream
+        response = client.chat.completions.create(
+            model=Config.LLM_MODEL,
+            messages=st.session_state.messages,
+            tools=tools,
+            extra_body={"cache_salt": st.session_state.cache_salt},
+        )
 
-    # process chunks
-    for chunk in stream:
-        if not chunk.choices:
-            continue
-        delta = chunk.choices[0].delta
-        if delta.content:
-            answer += delta.content
+        # get message
+        message = response.choices[0].message
+        content = message.content or ""
+        answer += content
+
+        # tool calls
+        if not response.choices[0].message.tool_calls:
+            break
+
+        # if so
+        for call in message.tool_calls or []:
+            fn = registry[call.function.name]
+            args = json.loads(call.function.arguments)
+            result = fn(**args)
+            st.session_state.messages.append(
+                {"role": "tool", "tool_call_id": call.id, "content": str(result)}
+            )
+
+    # append msg
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.chat_message("assistant").write(answer)
 
     return {"answer": answer, "chunks": chunks}
 
 
 # env openai
 load_dotenv()
-client = OpenAI(
-    api_key=os.environ["NRP_LLM_TOKEN"], base_url=os.environ["NRP_LLM_BASE_URL"]
-)
+client = OpenAI(api_key=os.environ["NRP_LLM_TOKEN"], base_url=Config.NRP_LLM_BASE_URL)

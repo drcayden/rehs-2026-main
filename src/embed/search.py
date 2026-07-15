@@ -16,12 +16,17 @@ this file only needs the query-time ``search`` and a shared ``embed`` helper.
 """
 
 from __future__ import annotations
+import base64
 import json
 import os
+import secrets
+import streamlit as st
 
 import chromadb
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from src.config.config import Config
 
 
 def embed(text: str) -> list[float]:
@@ -34,8 +39,16 @@ def embed(text: str) -> list[float]:
         resp = client.embeddings.create(model="qwen3-embedding", input=[text])
         return resp.data[0].embedding
     """
+
+    if "cache_salt" not in st.session_state:
+        st.session_state.cache_salt = base64.b64encode(secrets.token_bytes(32)).decode()
+
     return (
-        client.embeddings.create(model="qwen3-embedding", input=[text])
+        client.embeddings.create(
+            model=Config.EMBEDDING_MODEL,
+            input=[text],
+            extra_body={"cache_salt": st.session_state.cache_salt},
+        )
         .data[0]
         .embedding
     )
@@ -93,9 +106,7 @@ with open("data/chunks/chunks.json", "r") as f:
 
 # env openai
 load_dotenv()
-client = OpenAI(
-    api_key=os.environ["NRP_LLM_TOKEN"], base_url=os.environ["NRP_LLM_BASE_URL"]
-)
+client = OpenAI(api_key=os.environ["NRP_LLM_TOKEN"], base_url=Config.NRP_LLM_BASE_URL)
 
 # start chromadb
 coll = chromadb.PersistentClient(path="./chroma_db").get_or_create_collection(

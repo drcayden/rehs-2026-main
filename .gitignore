@@ -17,6 +17,7 @@ env/
 .env.*.local
 *.pem
 *.key
+deploy/k8s/secret.yaml
 
 # Editor
 .vscode/
