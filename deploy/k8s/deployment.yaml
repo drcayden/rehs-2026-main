@@ -21,7 +21,7 @@ spec:
         envFrom:
         - secretRef: {name: cayden-chatbot-llm-token}
         volumeMounts:
-        - name: chroma
+        - name: cayden-chroma
           mountPath: /app/chroma_db
         resources:
           requests:
@@ -37,6 +37,6 @@ spec:
           httpGet: {path: /_stcore/health, port: 8501}
           initialDelaySeconds: 5
       volumes:
-      - name: chroma
+      - name: cayden-chroma
         persistentVolumeClaim:
-          claimName: chroma-data
+          claimName: cayden-chroma-data

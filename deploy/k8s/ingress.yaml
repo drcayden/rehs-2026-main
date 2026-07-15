@@ -5,19 +5,19 @@ metadata:
   name: cayden-chatbot
   namespace: rehs-2026-chatbot
   annotations:
-    cert-manager.io/cluster-issuer: <<CERT_ISSUER>>
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
-  ingressClassName: <<INGRESS_CLASS>>
+  ingressClassName: haproxy
   tls:
-  - hosts: [<<INGRESS_HOST>>]
-    secretName: <<TLS_SECRET>>
+  - hosts: [cayden-rehs-chatbot.nrp-nautilus.io]
+    secretName: cayden-rehs-chatbot-tls
   rules:
-  - host: <<INGRESS_HOST>>
+  - host: cayden-rehs-chatbot.nrp-nautilus.io
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: chatbot
+            name: cayden-chatbot
             port: {number: 80}
