@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: chroma-data
+  name: cayden-chroma-data
   namespace: rehs-2026-chatbot
 spec:
   accessModes: [ReadWriteOnce]
