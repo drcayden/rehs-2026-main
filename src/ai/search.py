@@ -16,17 +16,35 @@ this file only needs the query-time ``search`` and a shared ``embed`` helper.
 """
 
 from __future__ import annotations
-import base64
 import json
-import os
-import secrets
+import chromadb
 import streamlit as st
 
-import chromadb
-from dotenv import load_dotenv
-from openai import OpenAI
 
-from src.config.config import Config
+from src.ai.client import get_openai_client
+from src.mix.config import Config
+
+
+@st.cache_resource
+def get_vector_db():
+    """Initializes and populates ChromaDB once across the app session."""
+    client = chromadb.PersistentClient(path="./chroma_db")
+    coll = client.get_or_create_collection("nrp_docs")
+
+    # Only load data if collection is empty
+    if coll.count() == 0:
+        with open("data/chunks/chunks.json", "r") as f:
+            chunks = json.load(f)
+
+        coll.add(
+            ids=[c["id"] for c in chunks],
+            documents=[c["text"] for c in chunks],
+            embeddings=[embed(c["text"]) for c in chunks],
+            metadatas=[
+                {"source_url": c["source_url"], "title": c["title"]} for c in chunks
+            ],
+        )
+    return coll
 
 
 def embed(text: str) -> list[float]:
@@ -40,11 +58,9 @@ def embed(text: str) -> list[float]:
         return resp.data[0].embedding
     """
 
-    if "cache_salt" not in st.session_state:
-        st.session_state.cache_salt = base64.b64encode(secrets.token_bytes(32)).decode()
-
     return (
-        client.embeddings.create(
+        get_openai_client()
+        .embeddings.create(
             model=Config.EMBEDDING_MODEL,
             input=[text],
             extra_body={"cache_salt": st.session_state.cache_salt},
@@ -82,7 +98,7 @@ def search(query: str, k: int = 5) -> list[dict]:
     or does not exist yet, return ``[]`` — DO NOT crash. The UI shows a friendly
     "no docs indexed yet" message when this returns an empty list.
     """
-    res = coll.query(query_embeddings=[embed(query)], n_results=k)
+    res = get_vector_db().query(query_embeddings=[embed(query)], n_results=k)
 
     # Use .get() with a fallback to empty lists to satisfy the type-checker
     documents = res.get("documents") or []
@@ -98,23 +114,3 @@ def search(query: str, k: int = 5) -> list[dict]:
         {"text": d, "source_url": m["source_url"], "title": m["title"], "score": s}
         for d, m, s in zip(docs_list, meta_list, dist_list)
     ]
-
-
-# load json
-with open("data/chunks/chunks.json", "r") as f:
-    chunks = json.load(f)
-
-# env openai
-load_dotenv()
-client = OpenAI(api_key=os.environ["NRP_LLM_TOKEN"], base_url=Config.NRP_LLM_BASE_URL)
-
-# start chromadb
-coll = chromadb.PersistentClient(path="./chroma_db").get_or_create_collection(
-    "nrp_docs"
-)
-coll.add(
-    ids=[c["id"] for c in chunks],
-    documents=[c["text"] for c in chunks],
-    embeddings=[embed(c["text"]) for c in chunks],
-    metadatas=[{"source_url": c["source_url"], "title": c["title"]} for c in chunks],
-)

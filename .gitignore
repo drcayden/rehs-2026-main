@@ -36,3 +36,6 @@ data/chunks/
 
 # Logs
 *.log
+
+# NRP documentation
+.temp/

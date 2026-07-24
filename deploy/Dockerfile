@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App code.
 COPY src/ ./src/
 COPY app.py .
+COPY data/chunks/ ./data/chunks/
 
 # TODO(week-07): decide how the vector DB gets into the pod. Options:
 #   (a) seed an empty PVC with a one-shot Job that runs scripts/ingest.py + index,

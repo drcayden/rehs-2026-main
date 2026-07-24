@@ -13,7 +13,7 @@ from pathlib import Path
 # finds the `src/` package without needing `-m`.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.ingest.ingest import run
+from src.util.ingest import run
 
 
 def main() -> None:

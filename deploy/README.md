@@ -14,6 +14,12 @@ docker build -t rehs-chatbot:v0.1 -f deploy/Dockerfile .
 docker run --env-file .env -p 8501:8501 rehs-chatbot:v0.1
 ```
 
+Doing this on a newer mac?
+Run this instead of the build command:
+```bash
+docker buildx build --platform linux/amd64 -t rehs-chatbot:v0.1 -f deploy/Dockerfile .
+```
+
 Open http://localhost:8501 — it should look identical to running outside Docker.
 
 ---
@@ -39,7 +45,7 @@ them in** with the real, mentor-confirmed values for your cluster. See
 ### Push the image (GHCR option)
 
 ```bash
-docker tag rehs-chatbot:v0.7 <<IMAGE>>
+docker tag rehs-chatbot:v0.1 <<IMAGE>>
 docker login ghcr.io -u <gh-username>   # use a GitHub PAT with package:write
 docker push <<IMAGE>>
 ```

@@ -16,41 +16,18 @@ The retrieval contract you depend on lives in src/embed/search.py and is documen
 in docs/INTERFACES.md.
 """
 
-import base64
-import secrets
-
 import streamlit as st
 
-from src.ui.chat import answer_question
+from src.ui.chat import show_history, show_input
+from src.ui.sidebar import show_sidebar
+from src.mix.state import init_state
 
 st.set_page_config(page_title="NRP Chatbot (REHS 2026)", page_icon="🤖")
-st.title("NRP Chatbot")
-st.caption("Ask about the National Research Platform. Built by REHS 2026.")
 
-# session vars
-if "cache_salt" not in st.session_state:
-    st.session_state.cache_salt = base64.b64encode(secrets.token_bytes(32)).decode()
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# session state
+init_state()
 
-# Replay history.
-for message in st.session_state.messages:
-    if message["role"] == "system":
-        continue  # don't show
-    st.chat_message(message["role"]).write(message["content"])
-
-if prompt := st.chat_input("Ask away..."):
-    with st.spinner("Thinking..."):
-        result = answer_question(prompt, k=5)
-    answer = result.get("answer", "")
-    chunks = result.get("chunks", [])
-
-    # show citations
-    if chunks:
-        with st.expander("📚 Sources"):
-            for c in chunks:
-                st.markdown(
-                    f"- [{c['title']}]({c['source_url']})  *(score: {c['score']:.3f})*"
-                )
-    else:
-        st.info("No docs indexed yet — run the ingest + index pipeline first.")
+# show stuff
+show_sidebar()
+show_history()
+show_input()

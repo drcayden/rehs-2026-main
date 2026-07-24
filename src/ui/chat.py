@@ -1,134 +1,47 @@
-"""UI — RAG orchestration: retrieve, ground, generate.
-
-Factored out of the Streamlit ``app.py`` so the Week 6 eval harness
-(``scripts/eval.py``) can import ``answer_question`` and score it WITHOUT
-spinning up a UI. Keeping it here is a CONTRACT — see docs/INTERFACES.md.
-You may instead keep this logic inline in app.py; if so, mirror this exact
-signature so eval.py's import still resolves.
-
-Implementation plan (Week 5):
-  1. ``search(question, k)`` for the most relevant chunks (the shared contract).
-  2. Build grounded chat messages: system prompt + numbered docs + question.
-  3. Call the NRP ``gpt-oss`` chat model with those messages.
-  4. Return BOTH the answer text and the chunks used, so the UI can render
-     citations and eval.py can check which sources were retrieved.
-"""
-
-from __future__ import annotations
-import json
-import os
-from dotenv import load_dotenv
-from openai import OpenAI
 import streamlit as st
 
-from src.config.config import Config
-from src.embed.search import search
-from src.tools.tools import registry, tools
+
+from src.ai.chat import saving_stream
 
 
-def build_grounded_messages(question: str, chunks: list[dict]) -> None:
-    """Builds a list of messages that ground the question in the retrieved chunks.
+def show_history():
+    # Replay history.
+    for msg in st.session_state.messages:
+        # 1. Skip system, tool, or empty meta-messages safely
+        if msg["role"] == "system":
+            continue
+        if msg["role"] == "tool" and not st.session_state.get("show_tools", False):
+            continue
 
-    CONTRACT (see docs/INTERFACES.md) — each message dict MUST have exactly:
-        {
-            "role":    str,  # "system" or "user"
-            "content": str,  # the message text
-        }
+        # 2. Only render if there is actual content to write
+        if msg.get("content"):
+            with st.chat_message(msg["role"]):
+                # Write the main message content
+                st.markdown(msg["content"])
 
-    Reference implementation shape (Week 5):
-        system_msg = {"role": "system", "content": SYSTEM_PROMPT}
-        numbered_docs = "\n\n".join(
-            f"[{i+1}] {c['title']} ({c['source_url']}):\n{c['text']}"
-            for i, c in enumerate(chunks)
-        )
-        user_msg = {
-            "role": "user",
-            "content": f"{numbered_docs}\n\nQuestion: {question}\nAnswer:"
-        }
-        return [system_msg, user_msg]
-    """
-    # build message
-    context = "\n\n---\n\n".join(f"[Source: {c['title']}]\n{c['text']}" for c in chunks)
-    grounded = f"""
-Use the NRP documentation below to answer. If the docs don't contain the answer, say so honestly. Use your tools whenever possible. For testing purposes only you may also answer multiplication questions.
-DEFAULT NAMESPACE: {Config.NAMESPACE}
-DOCS:
-{context}
-QUESTION: {question}
-    """
-    # append message
-    st.session_state.messages.append({"role": "system", "content": grounded})
+                # 3. INTEGRATION: Render sources if this message has them
+                chunks = msg.get("chunks")
+                if chunks:
+                    with st.expander("📚 Sources"):
+                        for c in chunks:
+                            # Safely get the score in case it's missing
+                            score = c.get("score", 0.0)
+                            st.markdown(
+                                f"- [{c['title']}]({c['source_url']}) *(score: {score:.3f})*"
+                            )
 
 
-def answer_question(question: str, k: int = 5) -> dict:
-    """Answer ``question`` from the NRP docs, with citations.
+def show_input():
+    if prompt := st.chat_input("Ask away..."):
+        # init vars
+        meta = {}
 
-    CONTRACT (see docs/INTERFACES.md) — returns a dict with EXACTLY these keys:
-        {
-            "answer": str,         # the model's grounded answer text
-            "chunks": list[dict],  # the search() results used as context
-                                   # (each is the search() chunk dict:
-                                   #  {"text","source_url","title","score"})
-        }
+        # 1. Render user prompt immediately in UI
+        st.chat_message("user").write(prompt)
 
-    Reference implementation shape (Week 5):
-        chunks = search(question, k=k)
-        messages = build_grounded_messages(question, chunks)
-        resp = client.chat.completions.create(model=LLM_MODEL, messages=messages)
-        return {"answer": resp.choices[0].message.content, "chunks": chunks}
+        # 3. Swap the nesting: chat_message MUST be the outer block
+        with st.chat_message("assistant"):
+            st.write_stream(saving_stream(prompt=prompt, meta=meta))
 
-    Graceful pre-wiring case: until generation is implemented, retrieval still
-    works (or returns [] on an empty collection), so eval.py can already run the
-    retrieval half. Return the chunks with an empty answer rather than crashing.
-    """
-    # init vars
-    answer = ""
-
-    # save msg
-    st.session_state.messages.append({"role": "user", "content": question})
-    st.chat_message("user").write(question)
-
-    # get docs
-    with st.spinner("Searching NRP docs..."):
-        chunks = search(question, k=5)
-
-    # ground messages
-    build_grounded_messages(question, chunks)
-
-    for _ in range(Config.MAX_ROUNDS):
-        # run stream
-        response = client.chat.completions.create(
-            model=Config.LLM_MODEL,
-            messages=st.session_state.messages,
-            tools=tools,
-            extra_body={"cache_salt": st.session_state.cache_salt},
-        )
-
-        # get message
-        message = response.choices[0].message
-        content = message.content or ""
-        answer += content
-
-        # tool calls
-        if not response.choices[0].message.tool_calls:
-            break
-
-        # if so
-        for call in message.tool_calls or []:
-            fn = registry[call.function.name]
-            args = json.loads(call.function.arguments)
-            result = fn(**args)
-            st.session_state.messages.append(
-                {"role": "tool", "tool_call_id": call.id, "content": str(result)}
-            )
-
-    # append msg
-    st.session_state.messages.append({"role": "assistant", "content": answer})
-    st.chat_message("assistant").write(answer)
-
-    return {"answer": answer, "chunks": chunks}
-
-
-# env openai
-load_dotenv()
-client = OpenAI(api_key=os.environ["NRP_LLM_TOKEN"], base_url=Config.NRP_LLM_BASE_URL)
+        # rerun to show chunks
+        st.rerun()

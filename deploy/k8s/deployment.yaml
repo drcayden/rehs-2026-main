@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: streamlit
-        image: python:3.12-slim
+        image: ghcr.io/drcayden/rehs-chatbot:v0.2
         ports:
         - containerPort: 8501
         envFrom:

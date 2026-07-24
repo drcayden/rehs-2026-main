@@ -3,7 +3,7 @@ import subprocess
 
 from openai.types.chat import ChatCompletionToolParam
 
-from src.config.config import Config
+from src.mix.config import Config
 
 
 def multiply(a, b):
